@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+((EUID==0)) || { echo "run as root"; exit 1; }
+
+SFS="/var/lib/tmplinux/tmpvoid.sfs"
+TMP=$(mktemp -d /tmp/container-XXXX)
+trap 'rm -rf "$TMP"' EXIT
+
+[[ -f $SFS ]] || {
+  curl -s https://repo-default.voidlinux.org/live/current/ \
+    | grep -oP 'void-x86_64-ROOTFS-\d+\.tar\.xz' \
+    | sort -V \
+    | tail -n1 \
+    | xargs -I{} curl -L https://repo-default.voidlinux.org/live/current/{} \
+    | tar -xJ -C "$TMP"
+  passwd --root "$TMP" -d root
+  cat > "${TMP}/etc/pam.d/login" << EOF
+#%PAM-1.0
+auth       sufficient pam_permit.so
+account    required   pam_permit.so
+session    required   pam_permit.so
+password   required   pam_permit.so
+EOF
+  mksquashfs "$TMP" "$SFS" -comp zstd
+}
+
+[[ -f "$TMP/etc/os-release" ]] || unsquashfs -f -d "$TMP" "$SFS"
+basename "$TMP" > /run/tmpvoid
+systemd-nspawn -D "$TMP" -E TERM=linux -- bash -c \
+  "ln -s /dev/pts/0 /dev/tty1;exec init"
+rm /run/tmpvoid
+
