@@ -1,3 +1,2 @@
-# tmparch
-Part of the tmplinux suite. Temporary Arch Linux.
 # tmpvoid
+Part of the tmplinux suite. Temporary Void Linux.
